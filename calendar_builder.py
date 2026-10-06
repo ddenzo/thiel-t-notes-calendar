@@ -69,7 +69,7 @@ def detail(soup, title, date, source):
         for sibling in body.select_one('.eventpagelocation').next_siblings:
             if getattr(sibling, 'name', None) == 'hr' or (getattr(sibling, 'get', None) and 'nada' in sibling.get('class', [])):
                 break
-            if not getattr(sibling, 'get_text', None):
+            if not getattr(sibling, 'find_all', None):
                 continue
             if sibling.name not in ['img', 'script']:
                 text = clean(sibling.get_text(' ', strip=True))
