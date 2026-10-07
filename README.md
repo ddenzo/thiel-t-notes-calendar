@@ -1,6 +1,6 @@
 # Thiel T-Notes calendar
 
-Generates a reviewable staff newsletter calendar from https://www.thiel.edu/calendar. No API key or paid service is required.
+Generates a reviewable staff newsletter calendar primarily from https://www.thiel.edu/jt/doms-calendar. Dates outside its rolling listing fall back to the public daily calendar. No API key or paid service is required.
 
 ## Run it
 
@@ -13,6 +13,8 @@ Generates a reviewable staff newsletter calendar from https://www.thiel.edu/cale
 ## Formatting
 
 Each entry has a bold title, AP-style date and starting time, italic location and concise description. Titles are preserved with minor cleanup. Noon, month abbreviations, Biweekly, Pa., Washington & Jefferson, HMSC, Bly Hall and Stamm Hall are normalized. Soccer and football locations use Stoeber Field at Alumni Stadium. Recognized home athletics entries use “Thiel hosts [opponent] in [sport].” All calendar categories are included, sorted by date and time.
+
+The primary page omits years; the parser resolves each date to the year nearest the current Pennsylvania date. Original description link URLs are retained.
 
 ## Review limitations
 
