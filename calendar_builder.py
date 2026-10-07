@@ -158,6 +158,7 @@ def parse_doms(soup, anchor):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--start', default='')
+    parser.add_argument('--whole-list', action='store_true', help='Include every entry on Dom’s calendar')
     parser.add_argument('--days', type=int, default=10)
     parser.add_argument('--output', default='output')
     args = parser.parse_args()
@@ -173,10 +174,15 @@ def main():
         first = min(dt.date.fromisoformat(e['date']) for e in listing)
         last = max(dt.date.fromisoformat(e['date']) for e in listing)
         dom_dates = {first + dt.timedelta(days=i) for i in range((last-first).days+1)}
-        events = [e for e in listing if start <= dt.date.fromisoformat(e['date']) < start + dt.timedelta(days=args.days)]
+        events = listing if args.whole_list else [e for e in listing if start <= dt.date.fromisoformat(e['date']) < start + dt.timedelta(days=args.days)]
+        if args.whole_list:
+            start = first
+            args.days = (last-first).days + 1
     except Exception as exc:
+        if args.whole_list:
+            raise SystemExit(f'Cannot fetch the complete Dom’s calendar listing: {exc}')
         print(f'Dom’s calendar unavailable; using daily calendar: {exc}')
-    for offset in range(args.days):
+    for offset in range(0 if args.whole_list else args.days):
         date = start + dt.timedelta(days=offset)
         if date in dom_dates:
             continue

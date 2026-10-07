@@ -5,8 +5,8 @@ Generates a reviewable staff newsletter calendar primarily from https://www.thie
 ## Run it
 
 1. Open **Actions → Build T-Notes calendar → Run workflow**.
-2. Leave the start date blank for today in Pennsylvania, or enter `YYYY-MM-DD`.
-3. Choose the number of days (default 10), then click **Run workflow**.
+2. Click **Run workflow**. Every entry currently shown on Dom’s calendar is included.
+3. No start date or day count is needed.
 4. Open the completed run to see the calendar in its summary. Download the **t-notes-calendar** artifact for the files.
 5. Review `review.md`, then copy `t-notes-calendar.md` into T-Notes. Links appear as plain labels in newsletter copy; their URLs are in the review file and `events.json`.
 
