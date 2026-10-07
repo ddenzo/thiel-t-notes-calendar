@@ -19,9 +19,14 @@ def clean(s):
     s = re.sub(r'\s+', ' ', html.unescape(s)).strip()
     for old, new in [('Washington and Jefferson', 'Washington & Jefferson'), ('St. Vincent', 'Saint Vincent'), ('Bi-weekly', 'Biweekly')]:
         s = s.replace(old, new)
+    s = re.sub(r'\bbi-weekly\b', 'Biweekly', s, flags=re.I)
     return re.sub(r'\bPA\b', 'Pa.', s)
 
 def ap_time(s):
+    if re.search(r'\bnoon\b', s, re.I):
+        return 'noon', 720
+    if re.search(r'\bmidnight\b', s, re.I):
+        return 'midnight', 0
     m = re.search(r'(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m', s, re.I)
     if not m:
         return None, 1440
@@ -37,7 +42,9 @@ def location(s, sport):
     if sport in ["women’s soccer", "men’s soccer", 'football']:
         return 'Stoeber Field at Alumni Stadium'
     s = clean(s).replace('HMSC', 'Howard Miller Student Center')
-    s = re.sub(r'\s+[-–]\s+', ', ', s)
+    s = re.sub(r'\s+[-–/]\s+', ', ', s)
+    if s.startswith('Howard Miller Student Center, '):
+        s = s.split(', ', 1)[1] + ', Howard Miller Student Center'
     for room, building in [('Bly Hall', 'Daniel & Dorothy Spence Academic Center'), ('Stamm Hall', 'James Pedas Communication Center')]:
         if room in s and building not in s:
             s = s.replace(room, f'{room}, {building}')
@@ -109,9 +116,49 @@ def render(event):
     when = 'all day' if event['all_day'] else event['time'] or 'time not listed'
     return f"**{event['title']}**  \n{MONTHS[date.month]} {date.day} at {when}  \n*{event['location']}*  \n{event['description']}"
 
+DOMS_URL = BASE + '/jt/doms-calendar'
+
+def parse_doms(soup, anchor):
+    """Parse the rolling listing; infer its omitted year near today's date."""
+    records = []
+    blocks = re.split(r'<hr\b[^>]*>', str(soup), flags=re.I)
+    for block in blocks:
+        fragment = BeautifulSoup(block, 'html.parser')
+        header = fragment.find('p')
+        if not header or not header.find('strong'):
+            continue
+        title = header.find('strong').get_text(' ', strip=True)
+        lines = [x.strip() for x in header.get_text('\n', strip=True).splitlines() if x.strip()]
+        stamp = next((x for x in lines if re.match(r'[A-Za-z]+\.?\s+\d+\s+at\s+', x)), None)
+        if not stamp:
+            raise ValueError(f'Unrecognized listing date: {title}')
+        m = re.match(r'([A-Za-z]+)\.?\s+(\d+)\s+at\s+(.+)', stamp)
+        month = next((i for i in range(1, 13) if MONTHS[i].rstrip('.').lower() == m[1].lower()), None)
+        if month is None:
+            raise ValueError(f'Unrecognized month: {stamp}')
+        candidates = []
+        for year in [anchor.year-1, anchor.year, anchor.year+1]:
+            try:
+                candidates.append(dt.date(year, month, int(m[2])))
+            except ValueError:
+                pass
+        date = min(candidates, key=lambda d: abs((d-anchor).days))
+        loc = header.find('em')
+        synthetic = BeautifulSoup('<h5 class="modal-title"></h5><div class="modal-body"><p class="eventpagedt"></p><p class="eventpagelocation"></p></div>', 'html.parser')
+        synthetic.select_one('.modal-title').string = title
+        synthetic.select_one('.eventpagedt').string = m[3]
+        synthetic.select_one('.eventpagelocation').string = loc.get_text(' ', strip=True) if loc else ''
+        for sibling in list(header.next_siblings):
+            synthetic.select_one('.modal-body').append(sibling)
+        records.append(detail(synthetic, title, date, DOMS_URL))
+    if not records:
+        raise ValueError('No event entries found on Dom’s calendar')
+    return records
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--start', default='')
+    parser.add_argument('--whole-list', action='store_true', help='Include every entry on Dom’s calendar')
     parser.add_argument('--days', type=int, default=10)
     parser.add_argument('--output', default='output')
     args = parser.parse_args()
@@ -119,8 +166,26 @@ def main():
         parser.error('--days must be between 1 and 31')
     start = dt.date.fromisoformat(args.start) if args.start else dt.datetime.now(ZoneInfo('America/New_York')).date()
     events, failures, seen = [], [], set()
-    for offset in range(args.days):
+    today = dt.datetime.now(ZoneInfo('America/New_York')).date()
+    dom_dates = set()
+    try:
+        listing = parse_doms(get(DOMS_URL), today)
+        # Use the demonstrated date span; fall back outside it rather than guess coverage.
+        first = min(dt.date.fromisoformat(e['date']) for e in listing)
+        last = max(dt.date.fromisoformat(e['date']) for e in listing)
+        dom_dates = {first + dt.timedelta(days=i) for i in range((last-first).days+1)}
+        events = listing if args.whole_list else [e for e in listing if start <= dt.date.fromisoformat(e['date']) < start + dt.timedelta(days=args.days)]
+        if args.whole_list:
+            start = first
+            args.days = (last-first).days + 1
+    except Exception as exc:
+        if args.whole_list:
+            raise SystemExit(f'Cannot fetch the complete Dom’s calendar listing: {exc}')
+        print(f'Dom’s calendar unavailable; using daily calendar: {exc}')
+    for offset in range(0 if args.whole_list else args.days):
         date = start + dt.timedelta(days=offset)
+        if date in dom_dates:
+            continue
         url = f'{BASE}/calendar/day/{date:%Y/%m/%d}'
         day = get(url)
         if not day.select_one('a.calendar_event_title') and not re.search(r'\b0 events\b', day.get_text(' ', strip=True)):

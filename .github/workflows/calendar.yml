@@ -1,15 +1,6 @@
 name: Build T-Notes calendar
 on:
   workflow_dispatch:
-    inputs:
-      start_date:
-        description: 'Start date (YYYY-MM-DD); blank means today in Pennsylvania'
-        required: false
-        default: ''
-      days:
-        description: 'Number of calendar days (1–31)'
-        required: true
-        default: '10'
   push:
     branches: [main]
   pull_request:
@@ -29,10 +20,7 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Generate calendar
         if: github.event_name != 'pull_request'
-        env:
-          START_DATE: ${{ inputs.start_date }}
-          DAYS: ${{ inputs.days || '10' }}
-        run: python calendar_builder.py --start "$START_DATE" --days "$DAYS"
+        run: python calendar_builder.py --whole-list
       - uses: actions/upload-artifact@v4
         if: always() && github.event_name != 'pull_request'
         with:
